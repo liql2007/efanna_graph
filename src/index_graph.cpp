@@ -7,6 +7,7 @@
 #include <efanna2e/index_graph.h>
 #include <efanna2e/exceptions.h>
 #include <efanna2e/parameters.h>
+#include <efanna2e/memory.h>
 #include <omp.h>
 #include <set>
 
@@ -74,24 +75,16 @@ void IndexGraph::update(const Parameters &parameters) {
 
       if (nn.flag) {
         nn_new.push_back(nn.id);
-        if (nn.distance > nhood_o.pool.back().distance) {
+        if (nn.distance > nhood_o.pool[nhood_o.M-1].distance) {
           LockGuard guard(nhood_o.lock);
-          if(nhood_o.rnn_new.size() < R)nhood_o.rnn_new.push_back(n);
-          else{
-            unsigned int pos = rand() % R;
-            nhood_o.rnn_new[pos] = n;
-          }
+          nhood_o.rnn_new.push_back(n);
         }
         nn.flag = false;
       } else {
         nn_old.push_back(nn.id);
-        if (nn.distance > nhood_o.pool.back().distance) {
+        if (nn.distance > nhood_o.pool[nhood_o.M-1].distance) {
           LockGuard guard(nhood_o.lock);
-          if(nhood_o.rnn_old.size() < R)nhood_o.rnn_old.push_back(n);
-          else{
-            unsigned int pos = rand() % R;
-            nhood_o.rnn_old[pos] = n;
-          }
+          nhood_o.rnn_old.push_back(n);
         }
       }
     }
@@ -132,6 +125,7 @@ void IndexGraph::NNDescent(const Parameters &parameters) {
     //checkDup();
     eval_recall(control_points, acc_eval_set);
     std::cout << "iter: " << it << std::endl;
+    efanna2e::Memory::ref().sample();
   }
 }
 
@@ -258,7 +252,6 @@ void IndexGraph::RefineGraph(const float* data, const Parameters &parameters) {
   }
   std::vector<nhood>().swap(graph_);
   has_built = true;
-
 }
 
 
@@ -291,6 +284,7 @@ void IndexGraph::Build(size_t n, const float *data, const Parameters &parameters
   }
   std::vector<nhood>().swap(graph_);
   has_built = true;
+  efanna2e::Memory::ref().printUsage();
 }
 
 void IndexGraph::Search(

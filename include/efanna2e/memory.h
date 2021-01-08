@@ -28,8 +28,8 @@ public:
     }
     void printUsage() {
         sample();
-        std::cout << "Max VmSize: " << maxVmSize << " GB, "
-                  << "Max VmRSS: " << maxVmRSS << " GB" << std::endl;
+        std::cout << "Max VmSize: " << getMaxVmSizeGB() << " GB, "
+                  << "Max VmRSS: " << getMaxVmRSSGB() << " GB" << std::endl;
     }
     void sample() {
         std::ifstream in("/proc/self/status");
