@@ -125,6 +125,7 @@ void IndexGraph::NNDescent(const Parameters &parameters) {
     //checkDup();
     eval_recall(control_points, acc_eval_set);
     std::cout << "iter: " << it << std::endl;
+
     efanna2e::Memory::ref().sample();
   }
 }
