@@ -123,10 +123,13 @@ void IndexGraph::NNDescent(const Parameters &parameters) {
     join();
     update(parameters);
     //checkDup();
-    eval_recall(control_points, acc_eval_set);
-    std::cout << "iter: " << it << std::endl;
+    auto recall = eval_recall(control_points, acc_eval_set);
+    std::cout << "iter: " << it << ", recall : " << recall << std::endl;
 
     efanna2e::Memory::ref().sample();
+    if (recall >= 0.95) {
+        break;
+    }
   }
 }
 
@@ -147,7 +150,7 @@ void IndexGraph::generate_control_set(std::vector<unsigned> &c,
   }
 }
 
-void IndexGraph::eval_recall(std::vector<unsigned>& ctrl_points, std::vector<std::vector<unsigned> > &acc_eval_set){
+float IndexGraph::eval_recall(std::vector<unsigned>& ctrl_points, std::vector<std::vector<unsigned> > &acc_eval_set){
   float mean_acc=0;
   for(unsigned i=0; i<ctrl_points.size(); i++){
     float acc = 0;
@@ -163,7 +166,7 @@ void IndexGraph::eval_recall(std::vector<unsigned>& ctrl_points, std::vector<std
     }
     mean_acc += acc / v.size();
   }
-  std::cout<<"recall : "<<mean_acc / ctrl_points.size() <<std::endl;
+  return mean_acc / ctrl_points.size();
 }
 
 
