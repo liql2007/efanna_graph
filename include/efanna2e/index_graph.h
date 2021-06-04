@@ -61,9 +61,9 @@ class IndexGraph : public Index {
   void join();
   void update(const Parameters &parameters);
   void generate_control_set(std::vector<unsigned> &c,
-                                      std::vector<std::vector<unsigned> > &v,
+                                      std::vector<std::vector<float> > &v,
                                       unsigned N);
-  float eval_recall(std::vector<unsigned>& ctrl_points, std::vector<std::vector<unsigned> > &acc_eval_set);
+  float eval_recall(std::vector<unsigned>& ctrl_points, std::vector<std::vector<float> > &acc_eval_set);
   void get_neighbor_to_add(const float* point, const Parameters &parameters, LockGraph& g,
                            std::mt19937& rng, std::vector<Neighbor>& retset, unsigned n_total);
   void compact_to_Lockgraph(LockGraph &g);

@@ -116,7 +116,7 @@ void IndexGraph::NNDescent(const Parameters &parameters) {
   unsigned iter = parameters.Get<unsigned>("iter");
   std::mt19937 rng(rand());
   std::vector<unsigned> control_points(_CONTROL_NUM);
-  std::vector<std::vector<unsigned> > acc_eval_set(_CONTROL_NUM);
+  std::vector<std::vector<float> > acc_eval_set(_CONTROL_NUM);
   GenRandom(rng, &control_points[0], control_points.size(), nd_);
   generate_control_set(control_points, acc_eval_set, nd_);
   for (unsigned it = 0; it < iter; it++) {
@@ -134,7 +134,7 @@ void IndexGraph::NNDescent(const Parameters &parameters) {
 }
 
 void IndexGraph::generate_control_set(std::vector<unsigned> &c,
-                                      std::vector<std::vector<unsigned> > &v,
+                                      std::vector<std::vector<float> > &v,
                                       unsigned N){
 #pragma omp parallel for
   for(unsigned i=0; i<c.size(); i++){
@@ -145,24 +145,23 @@ void IndexGraph::generate_control_set(std::vector<unsigned> &c,
     }
     std::partial_sort(tmp.begin(), tmp.begin() + _CONTROL_NUM, tmp.end());
     for(unsigned j=0; j<_CONTROL_NUM; j++){
-      v[i].push_back(tmp[j].id);
+      v[i].push_back(tmp[j].distance);
     }
   }
 }
 
-float IndexGraph::eval_recall(std::vector<unsigned>& ctrl_points, std::vector<std::vector<unsigned> > &acc_eval_set){
+float IndexGraph::eval_recall(std::vector<unsigned>& ctrl_points, std::vector<std::vector<float> > &acc_eval_set){
   float mean_acc=0;
   for(unsigned i=0; i<ctrl_points.size(); i++){
     float acc = 0;
     auto &g = graph_[ctrl_points[i]].pool;
     auto &v = acc_eval_set[i];
-    for(unsigned j=0; j<g.size(); j++){
-      for(unsigned k=0; k<v.size(); k++){
-        if(g[j].id == v[k]){
-          acc++;
-          break;
+    for (std::size_t k = 0, p = 0; k < v.size() && p < g.size(); ++k) {
+        assert(v[k] <= g[p].distance);
+        if (v[k] == g[p].distance) {
+            ++acc;
+            ++p;
         }
-      }
     }
     mean_acc += acc / v.size();
   }
