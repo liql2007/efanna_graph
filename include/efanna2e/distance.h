@@ -8,57 +8,58 @@
 #include <x86intrin.h>
 #include <iostream>
 namespace efanna2e{
-  enum Metric{
+enum Metric{
     L2 = 0,
     INNER_PRODUCT = 1,
     FAST_L2 = 2,
     PQ = 3
-  };
-    class Distance {
-    public:
-        virtual float compare(const float* a, const float* b, unsigned length) const = 0;
-        virtual ~Distance() {}
-    };
+};
+class Distance {
+public:
+    virtual float compare(const float* a, const float* b, unsigned length) const = 0;
+    virtual ~Distance() {}
+};
 
-    class DistanceL2 : public Distance{
-    public:
-        float compare(const float* a, const float* b, unsigned size) const {
-            float result = 0;
-
+class DistanceL2 : public Distance{
+public:
+    float compare(const float* a, const float* b, unsigned size) const {
+        float result = 0;
+        const float* last = a + size;
 #ifdef __GNUC__
 #ifdef __AVX__
 
-  #define AVX_L2SQR(addr1, addr2, dest, tmp1, tmp2) \
+#define AVX_L2SQR(addr1, addr2, dest, tmp1, tmp2) \
       tmp1 = _mm256_loadu_ps(addr1);\
       tmp2 = _mm256_loadu_ps(addr2);\
       tmp1 = _mm256_sub_ps(tmp1, tmp2); \
       tmp1 = _mm256_mul_ps(tmp1, tmp1); \
       dest = _mm256_add_ps(dest, tmp1);
 
-      __m256 sum;
-      __m256 l0, l1;
-      __m256 r0, r1;
-      unsigned D = (size + 7) & ~7U;
-      unsigned DR = D % 16;
-      unsigned DD = D - DR;
-      const float *l = a;
-      const float *r = b;
-      const float *e_l = l + DD;
-      const float *e_r = r + DD;
-      float unpack[8] __attribute__ ((aligned (32))) = {0, 0, 0, 0, 0, 0, 0, 0};
+        __m256 sum;
+        __m256 l0, l1;
+        __m256 r0, r1;
+        unsigned D = size & ~7U;
+        unsigned DR = D % 16;
+        unsigned DD = D - DR;
+        const float *l = a;
+        const float *r = b;
+        const float *e_l = l + DD;
+        const float *e_r = r + DD;
+        float unpack[8] __attribute__ ((aligned (32))) = {0, 0, 0, 0, 0, 0, 0, 0};
 
-      sum = _mm256_loadu_ps(unpack);
-      if(DR){AVX_L2SQR(e_l, e_r, sum, l0, r0);}
+        sum = _mm256_loadu_ps(unpack);
+        if(DR){AVX_L2SQR(e_l, e_r, sum, l0, r0);}
 
-      for (unsigned i = 0; i < DD; i += 16, l += 16, r += 16) {
-      	AVX_L2SQR(l, r, sum, l0, r0);
-      	AVX_L2SQR(l + 8, r + 8, sum, l1, r1);
-      }
-      _mm256_storeu_ps(unpack, sum);
-      result = unpack[0] + unpack[1] + unpack[2] + unpack[3] + unpack[4] + unpack[5] + unpack[6] + unpack[7];
-
+        for (unsigned i = 0; i < DD; i += 16, l += 16, r += 16) {
+            AVX_L2SQR(l, r, sum, l0, r0);
+            AVX_L2SQR(l + 8, r + 8, sum, l1, r1);
+        }
+        _mm256_storeu_ps(unpack, sum);
+        result = unpack[0] + unpack[1] + unpack[2] + unpack[3] + unpack[4] + unpack[5] + unpack[6] + unpack[7];
+        a += D;
+        b += D;
 #else
-#ifdef __SSE2__
+        #ifdef __SSE2__
   #define SSE_L2SQR(addr1, addr2, dest, tmp1, tmp2) \
           tmp1 = _mm_load_ps(addr1);\
           tmp2 = _mm_load_ps(addr2);\
@@ -69,7 +70,7 @@ namespace efanna2e{
   __m128 sum;
   __m128 l0, l1, l2, l3;
   __m128 r0, r1, r2, r3;
-  unsigned D = (size + 3) & ~3U;
+  unsigned D = size & ~3U;
   unsigned DR = D % 16;
   unsigned DD = D - DR;
   const float *l = a;
@@ -97,12 +98,13 @@ namespace efanna2e{
   }
   _mm_storeu_ps(unpack, sum);
   result += unpack[0] + unpack[1] + unpack[2] + unpack[3];
+  a += D;
+  b += D;
 
 //nomal distance
 #else
 
       float diff0, diff1, diff2, diff3;
-      const float* last = a + size;
       const float* unroll_group = last - 3;
 
       /* Process 4 items with each loop for efficiency. */
@@ -116,54 +118,61 @@ namespace efanna2e{
           b += 4;
       }
       /* Process last 0-3 pixels.  Not needed for standard vector lengths. */
-      while (a < last) {
-          diff0 = *a++ - *b++;
-          result += diff0 * diff0;
-      }
+//      while (a < last) {
+//          diff0 = *a++ - *b++;
+//          result += diff0 * diff0;
+//      }
 #endif
 #endif
 #endif
-
-            return result;
+        while (a < last) {
+            auto diff0 = *a++ - *b++;
+            result += diff0 * diff0;
         }
-    };
 
-  class DistanceInnerProduct : public Distance{
-  public:
+        return result;
+    }
+};
+
+class DistanceInnerProduct : public Distance{
+public:
     float compare(const float* a, const float* b, unsigned size) const {
-      float result = 0;
+        float result = 0;
+        const float* last = a + size;
 #ifdef __GNUC__
 #ifdef __AVX__
-      #define AVX_DOT(addr1, addr2, dest, tmp1, tmp2) \
+#define AVX_DOT(addr1, addr2, dest, tmp1, tmp2) \
           tmp1 = _mm256_loadu_ps(addr1);\
           tmp2 = _mm256_loadu_ps(addr2);\
           tmp1 = _mm256_mul_ps(tmp1, tmp2); \
           dest = _mm256_add_ps(dest, tmp1);
 
-	  __m256 sum;
-   	  __m256 l0, l1;
-   	  __m256 r0, r1;
-      unsigned D = (size + 7) & ~7U;
-      unsigned DR = D % 16;
-      unsigned DD = D - DR;
-   	  const float *l = a;
-   	  const float *r = b;
-      const float *e_l = l + DD;
-   	  const float *e_r = r + DD;
-      float unpack[8] __attribute__ ((aligned (32))) = {0, 0, 0, 0, 0, 0, 0, 0};
+        __m256 sum;
+        __m256 l0, l1;
+        __m256 r0, r1;
+        unsigned D = size & ~7U;
+        unsigned DR = D % 16;
+        unsigned DD = D - DR;
+        const float *l = a;
+        const float *r = b;
+        const float *e_l = l + DD;
+        const float *e_r = r + DD;
+        float unpack[8] __attribute__ ((aligned (32))) = {0, 0, 0, 0, 0, 0, 0, 0};
 
-      sum = _mm256_loadu_ps(unpack);
-      if(DR){AVX_DOT(e_l, e_r, sum, l0, r0);}
+        sum = _mm256_loadu_ps(unpack);
+        if(DR){AVX_DOT(e_l, e_r, sum, l0, r0);}
 
-      for (unsigned i = 0; i < DD; i += 16, l += 16, r += 16) {
-	    AVX_DOT(l, r, sum, l0, r0);
-	    AVX_DOT(l + 8, r + 8, sum, l1, r1);
-      }
-      _mm256_storeu_ps(unpack, sum);
-      result = unpack[0] + unpack[1] + unpack[2] + unpack[3] + unpack[4] + unpack[5] + unpack[6] + unpack[7];
-
+        for (unsigned i = 0; i < DD; i += 16, l += 16, r += 16) {
+            AVX_DOT(l, r, sum, l0, r0);
+            AVX_DOT(l + 8, r + 8, sum, l1, r1);
+        }
+        _mm256_storeu_ps(unpack, sum);
+        result = unpack[0] + unpack[1] + unpack[2] + unpack[3] + unpack[4] + unpack[5] + unpack[6] + unpack[7];
+        a += D;
+        b += D;
+#undef AVX_DOT
 #else
-#ifdef __SSE2__
+        #ifdef __SSE2__
       #define SSE_DOT(addr1, addr2, dest, tmp1, tmp2) \
           tmp1 = _mm128_loadu_ps(addr1);\
           tmp2 = _mm128_loadu_ps(addr2);\
@@ -172,7 +181,7 @@ namespace efanna2e{
       __m128 sum;
       __m128 l0, l1, l2, l3;
       __m128 r0, r1, r2, r3;
-      unsigned D = (size + 3) & ~3U;
+      unsigned D = size & ~3U;
       unsigned DR = D % 16;
       unsigned DD = D - DR;
       const float *l = a;
@@ -200,10 +209,11 @@ namespace efanna2e{
       }
       _mm_storeu_ps(unpack, sum);
       result += unpack[0] + unpack[1] + unpack[2] + unpack[3];
+      a += D;
+      b += D;
 #else
 
       float dot0, dot1, dot2, dot3;
-      const float* last = a + size;
       const float* unroll_group = last - 3;
 
       /* Process 4 items with each loop for efficiency. */
@@ -217,20 +227,44 @@ namespace efanna2e{
           b += 4;
       }
       /* Process last 0-3 pixels.  Not needed for standard vector lengths. */
-      while (a < last) {
-          result += *a++ * *b++;
-      }
+//      while (a < last) {
+//          result += *a++ * *b++;
+//      }
 #endif
 #endif
 #endif
-      return result;
+        while (a < last) {
+            result += *a++ * *b++;
+        }
+        return result;
     }
 
-  };
-  class DistanceFastL2 : public DistanceInnerProduct{
-   public:
+};
+
+class DistanceNegativeInnerProduct : public DistanceInnerProduct {
+    float compare(const float* a, const float* b, unsigned size) const override {
+        auto ip = DistanceInnerProduct::compare(a, b, size);
+//    auto squaredL2 = DistanceL2().compare(a, b, size);
+//    if (ip != 1.0 - squaredL2 / 2.0) {
+//      double v1 = 0, v2 = 0;
+//      for (unsigned i = 0; i < size; ++i) {
+//        v1 += a[i] * a[i];
+//        v2 += b[i] * b[i];
+//      }
+//      std::cerr << "l2: " << v1 << ", " << v2 << std::endl;
+//      auto diff = 1.0 - squaredL2 / 2.0 - ip;
+//      std::cerr << "not equal: " << diff << std::endl;
+//      exit(-1);
+//    }
+        return -ip;
+    }
+};
+
+class DistanceFastL2 : public DistanceInnerProduct{
+public:
     float norm(const float* a, unsigned size) const{
-      float result = 0;
+        float result = 0;
+        const float* last = a + size;
 #ifdef __GNUC__
 #ifdef __AVX__
 #define AVX_L2NORM(addr, dest, tmp) \
@@ -238,23 +272,25 @@ namespace efanna2e{
     tmp = _mm256_mul_ps(tmp, tmp); \
     dest = _mm256_add_ps(dest, tmp);
 
-    __m256 sum;
-   	__m256 l0, l1;
-    unsigned D = (size + 7) & ~7U;
-    unsigned DR = D % 16;
-    unsigned DD = D - DR;
-    const float *l = a;
-    const float *e_l = l + DD;
-    float unpack[8] __attribute__ ((aligned (32))) = {0, 0, 0, 0, 0, 0, 0, 0};
+        __m256 sum;
+        __m256 l0, l1;
+        unsigned D = (size + 7) & ~7U;
+        unsigned DR = D % 16;
+        unsigned DD = D - DR;
+        const float *l = a;
+        const float *e_l = l + DD;
+        float unpack[8] __attribute__ ((aligned (32))) = {0, 0, 0, 0, 0, 0, 0, 0};
 
-    sum = _mm256_loadu_ps(unpack);
-    if(DR){AVX_L2NORM(e_l, sum, l0);}
-	for (unsigned i = 0; i < DD; i += 16, l += 16) {
-      AVX_L2NORM(l, sum, l0);
-      AVX_L2NORM(l + 8, sum, l1);
-    }
-    _mm256_storeu_ps(unpack, sum);
-    result = unpack[0] + unpack[1] + unpack[2] + unpack[3] + unpack[4] + unpack[5] + unpack[6] + unpack[7];
+        sum = _mm256_loadu_ps(unpack);
+        if(DR){AVX_L2NORM(e_l, sum, l0);}
+        for (unsigned i = 0; i < DD; i += 16, l += 16) {
+            AVX_L2NORM(l, sum, l0);
+            AVX_L2NORM(l + 8, sum, l1);
+        }
+        _mm256_storeu_ps(unpack, sum);
+        result = unpack[0] + unpack[1] + unpack[2] + unpack[3] + unpack[4] + unpack[5] + unpack[6] + unpack[7];
+        a += D;
+#undef AVX_L2NORM
 #else
 #ifdef __SSE2__
 #define SSE_L2NORM(addr, dest, tmp) \
@@ -290,9 +326,9 @@ namespace efanna2e{
     }
     _mm_storeu_ps(unpack, sum);
     result += unpack[0] + unpack[1] + unpack[2] + unpack[3];
+    a += D;
 #else
     float dot0, dot1, dot2, dot3;
-    const float* last = a + size;
     const float* unroll_group = last - 3;
 
     /* Process 4 items with each loop for efficiency. */
@@ -304,14 +340,14 @@ namespace efanna2e{
         result += dot0 + dot1 + dot2 + dot3;
         a += 4;
     }
-    /* Process last 0-3 pixels.  Not needed for standard vector lengths. */
-    while (a < last) {
+#endif
+#endif
+#endif
+      /* Process last 0-3 pixels.  Not needed for standard vector lengths. */
+      while (a < last) {
         result += (*a) * (*a);
         a++;
-    }
-#endif
-#endif
-#endif
+      }
       return result;
     }
     using DistanceInnerProduct::compare;
